@@ -1,4 +1,4 @@
-const CACHE = 'dice-roll-v1';
+const CACHE = 'dice-roll-v2';
 const ASSETS = [
   './',
   './index.html',

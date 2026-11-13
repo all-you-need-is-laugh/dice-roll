@@ -149,3 +149,6 @@ footer { padding: 0 16px 18px; text-align: center; }
 }
 
 #hint { margin: 10px 0 0; font-size: 0.85rem; color: var(--muted); }
+
+#result { display: flex; flex-direction: column; align-items: center; gap: 2px; }
+#result .detail { font-size: 0.9rem; font-weight: 600; color: var(--muted); text-shadow: none; }

@@ -3,13 +3,31 @@ import * as THREE from '../vendor/three.module.min.js';
 const range = (n, f) => Array.from({ length: n }, (_, i) => f(i));
 
 export const DICE = {
-  d4: { label: 'D4', values: range(4, (i) => String(i + 1)), color: '#e85d75', scale: 1.25, geometry: () => new THREE.TetrahedronGeometry(1) },
+  d4: { label: 'D4', values: range(4, (i) => String(i + 1)), color: '#e85d75', scale: 1.3, vertexLabels: true, geometry: () => new THREE.TetrahedronGeometry(1) },
   d6: { label: 'D6', values: range(6, (i) => String(i + 1)), color: '#f4f1ea', ink: '#1d2333', scale: 0.95, geometry: () => new THREE.BoxGeometry(1, 1, 1) },
   d8: { label: 'D8', values: range(8, (i) => String(i + 1)), color: '#4c9be8', scale: 1.15, geometry: () => new THREE.OctahedronGeometry(1) },
   d10: { label: 'D10', values: range(10, (i) => String(i + 1)), color: '#43b581', scale: 1.1, custom: trapezohedronFaces },
   d12: { label: 'D12', values: range(12, (i) => String(i + 1)), color: '#9b6bdf', scale: 1.1, geometry: () => new THREE.DodecahedronGeometry(1) },
   d20: { label: 'D20', values: range(20, (i) => String(i + 1)), color: '#f0a33a', scale: 1.15, geometry: () => new THREE.IcosahedronGeometry(1) },
-  d100: { label: 'D%', values: range(10, (i) => (i === 0 ? '00' : String(i * 10))), color: '#2f3b52', ink: '#f6d38a', scale: 1.1, custom: trapezohedronFaces },
+  d100: { label: 'Tens', values: range(10, (i) => (i === 0 ? '00' : String(i * 10))), color: '#2f3b52', ink: '#f6d38a', scale: 1.1, custom: trapezohedronFaces },
+  d10ones: { label: 'Ones', values: range(10, (i) => String(i)), color: '#f6d38a', ink: '#2f3b52', scale: 1.1, custom: trapezohedronFaces },
+};
+
+/** What the picker offers: each entry is the set of dice thrown together. */
+export const SETS = {
+  d4: { label: 'D4', dice: ['d4'] },
+  d6: { label: 'D6', dice: ['d6'] },
+  d8: { label: 'D8', dice: ['d8'] },
+  d10: { label: 'D10', dice: ['d10'] },
+  d12: { label: 'D12', dice: ['d12'] },
+  d20: { label: 'D20', dice: ['d20'] },
+  d100: {
+    label: 'D%',
+    dice: ['d100', 'd10ones'],
+    // 00 + 0 counts as 100.
+    total: ([tens, ones]) => Number(tens) + Number(ones) || 100,
+    detail: ([tens, ones]) => `${tens} + ${ones}`,
+  },
 };
 
 /** Group the triangles of a three.js polyhedron into flat polygon faces. */
@@ -76,7 +94,7 @@ function trapezohedronFaces() {
   return faces;
 }
 
-function makeLabelTexture(text, { color, ink, fontPx }, renderer) {
+function makeLabelTexture(labels, color, ink, renderer) {
   const size = 256;
   const canvas = document.createElement('canvas');
   canvas.width = canvas.height = size;
@@ -86,11 +104,17 @@ function makeLabelTexture(text, { color, ink, fontPx }, renderer) {
   ctx.fillStyle = ink;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.font = `700 ${fontPx}px "Segoe UI", Roboto, Helvetica, Arial, sans-serif`;
-  ctx.fillText(text, size / 2, size / 2 + fontPx * 0.04);
-  if (text === '6' || text === '9') {
-    const w = ctx.measureText(text).width;
-    ctx.fillRect(size / 2 - w / 2, size / 2 + fontPx * 0.42, w, Math.max(3, fontPx * 0.07));
+  for (const { text, x, y, rot, fontPx } of labels) {
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(rot);
+    ctx.font = `700 ${fontPx}px "Segoe UI", Roboto, Helvetica, Arial, sans-serif`;
+    ctx.fillText(text, 0, fontPx * 0.04);
+    if (text === '6' || text === '9') {
+      const w = ctx.measureText(text).width;
+      ctx.fillRect(-w / 2, fontPx * 0.42, w, Math.max(3, fontPx * 0.07));
+    }
+    ctx.restore();
   }
   const tex = new THREE.CanvasTexture(canvas);
   tex.colorSpace = THREE.SRGBColorSpace;
@@ -149,6 +173,15 @@ export function buildDie(type, renderer) {
     }));
   }
 
+  let vertices = null;
+  if (def.vertexLabels) {
+    vertices = [];
+    for (const p of faces.flatMap((f) => f.verts)) {
+      if (!vertices.some((v) => v.pos.distanceTo(p) < 1e-4)) vertices.push({ pos: p.clone() });
+    }
+    vertices.forEach((v, i) => (v.value = def.values[i]));
+  }
+
   const R = Math.max(...faces.map((f) => f.radius));
   const positions = [], normals = [], uvs = [];
   const geom = new THREE.BufferGeometry();
@@ -171,9 +204,26 @@ export function buildDie(type, renderer) {
     }
     geom.addGroup(start, positions.length / 3 - start, fi);
     const pxPerUnit = 256 / (2 * R);
-    const fontPx = Math.min(f.inradius * 1.35, (f.inradius * 1.9) / (0.62 * longest)) * pxPerUnit;
+    let labels;
+    if (vertices) {
+      // D4 style: each corner carries the value of that vertex, its top pointing at the vertex.
+      labels = f.verts.map((p) => {
+        const d = p.clone().sub(f.centroid);
+        const x = d.dot(f.right), y = d.dot(f.up);
+        return {
+          text: vertices.find((v) => v.pos.distanceTo(p) < 1e-4).value,
+          x: 128 + x * 0.47 * pxPerUnit,
+          y: 128 - y * 0.47 * pxPerUnit,
+          rot: Math.atan2(x, y),
+          fontPx: f.inradius * 0.72 * pxPerUnit,
+        };
+      });
+    } else {
+      const fontPx = Math.min(f.inradius * 1.35, (f.inradius * 1.9) / (0.62 * longest)) * pxPerUnit;
+      labels = [{ text: f.value, x: 128, y: 128, rot: 0, fontPx }];
+    }
     materials.push(new THREE.MeshStandardMaterial({
-      map: makeLabelTexture(f.value, { color: def.color, ink, fontPx }, renderer),
+      map: makeLabelTexture(labels, def.color, ink, renderer),
       roughness: 0.38,
       polygonOffset: true,
       polygonOffsetFactor: 1,
@@ -194,5 +244,5 @@ export function buildDie(type, renderer) {
   );
   mesh.add(edges);
 
-  return { mesh, faces, def };
+  return { mesh, faces, vertices, def };
 }
