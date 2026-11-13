@@ -1,0 +1,16 @@
+{
+  "name": "Dice Roll",
+  "short_name": "Dice",
+  "description": "Roll 3D dice: D4, D6, D8, D10, D12, D20 and percentile. Shake your phone or tap Roll.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#151a27",
+  "theme_color": "#151a27",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
