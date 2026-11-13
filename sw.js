@@ -1,4 +1,4 @@
-const CACHE = 'dice-roll-v2';
+const CACHE = 'dice-roll-v3';
 const ASSETS = [
   './',
   './index.html',
@@ -6,6 +6,8 @@ const ASSETS = [
   './manifest.webmanifest',
   './js/app.js',
   './js/dice.js',
+  './js/sound.js',
+  './vendor/cannon-es.js',
   './vendor/three.module.min.js',
   './icons/icon-192.png',
   './icons/icon-512.png',

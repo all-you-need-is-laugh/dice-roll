@@ -13,6 +13,23 @@ export const DICE = {
   d10ones: { label: 'Ones', values: range(10, (i) => String(i)), color: '#f6d38a', ink: '#2f3b52', scale: 1.1, custom: trapezohedronFaces },
 };
 
+/** Visual themes: scene colours plus optional per-die colour overrides. */
+export const THEMES = {
+  classic: { label: 'Classic', bg: 0x151a27, table: 0x24304a, pageBg: '#151a27', accent: '#f0a33a' },
+  ducks: {
+    label: 'Ducks',
+    bg: 0x0d4a68,
+    table: 0x2e8bb8,
+    pageBg: '#0d4a68',
+    accent: '#ffd43b',
+    duck: true,
+    quack: true,
+    colors: (type) => (type === 'd10ones'
+      ? { color: '#ff9f1c', ink: '#ffffff', duckInk: '#c25e00' }
+      : { color: '#ffd43b', ink: '#d9480f', duckInk: '#e0a800' }),
+  },
+};
+
 /** What the picker offers: each entry is the set of dice thrown together. */
 export const SETS = {
   d4: { label: 'D4', dice: ['d4'] },
@@ -94,13 +111,39 @@ function trapezohedronFaces() {
   return faces;
 }
 
-function makeLabelTexture(labels, color, ink, renderer) {
+/** A small rubber-duck silhouette centred on (0, 0), roughly `s` wide. */
+function drawDuck(ctx, s, body) {
+  ctx.fillStyle = body;
+  ctx.beginPath();
+  ctx.ellipse(-0.05 * s, 0.14 * s, 0.42 * s, 0.24 * s, 0, 0, Math.PI * 2); // body
+  ctx.fill();
+  ctx.beginPath();
+  ctx.moveTo(-0.38 * s, 0.05 * s); // tail
+  ctx.lineTo(-0.55 * s, -0.16 * s);
+  ctx.lineTo(-0.2 * s, -0.02 * s);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.arc(0.2 * s, -0.2 * s, 0.19 * s, 0, Math.PI * 2); // head
+  ctx.fill();
+  ctx.beginPath();
+  ctx.ellipse(0.42 * s, -0.16 * s, 0.13 * s, 0.06 * s, 0.15, 0, Math.PI * 2); // beak
+  ctx.fill();
+}
+
+function makeLabelTexture(labels, color, ink, renderer, duck) {
   const size = 256;
   const canvas = document.createElement('canvas');
   canvas.width = canvas.height = size;
   const ctx = canvas.getContext('2d');
   ctx.fillStyle = color;
   ctx.fillRect(0, 0, size, size);
+  if (duck) {
+    ctx.save();
+    ctx.translate(duck.x, duck.y);
+    ctx.globalAlpha = 0.55;
+    drawDuck(ctx, duck.size, duck.ink);
+    ctx.restore();
+  }
   ctx.fillStyle = ink;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
@@ -150,8 +193,9 @@ function assignValues(faces, values) {
   });
 }
 
-export function buildDie(type, renderer) {
+export function buildDie(type, renderer, theme = THEMES.classic) {
   const def = DICE[type];
+  const colors = theme.colors?.(type) ?? { color: def.color, ink: def.ink };
   const faces = def.custom ? def.custom() : facesFromGeometry(def.geometry());
   assignValues(faces, def.values);
 
@@ -185,7 +229,7 @@ export function buildDie(type, renderer) {
   const R = Math.max(...faces.map((f) => f.radius));
   const positions = [], normals = [], uvs = [];
   const geom = new THREE.BufferGeometry();
-  const ink = def.ink || (isDark(def.color) ? '#ffffff' : '#1d2333');
+  const ink = colors.ink || (isDark(colors.color) ? '#ffffff' : '#1d2333');
   const materials = [];
   const longest = Math.max(...def.values.map((v) => v.length));
 
@@ -223,7 +267,12 @@ export function buildDie(type, renderer) {
       labels = [{ text: f.value, x: 128, y: 128, rot: 0, fontPx }];
     }
     materials.push(new THREE.MeshStandardMaterial({
-      map: makeLabelTexture(labels, def.color, ink, renderer),
+      map: makeLabelTexture(labels, colors.color, ink, renderer, theme.duck && {
+        x: 128,
+        y: 128 + (vertices ? 0 : f.inradius * 0.08 * pxPerUnit),
+        size: f.inradius * (vertices ? 0.9 : 1.75) * pxPerUnit,
+        ink: colors.duckInk,
+      }),
       roughness: 0.38,
       polygonOffset: true,
       polygonOffsetFactor: 1,
@@ -240,7 +289,7 @@ export function buildDie(type, renderer) {
   mesh.castShadow = true;
   const edges = new THREE.LineSegments(
     new THREE.EdgesGeometry(geom, 5),
-    new THREE.LineBasicMaterial({ color: isDark(def.color) ? 0x000000 : 0x5a4a3a, transparent: true, opacity: 0.35 }),
+    new THREE.LineBasicMaterial({ color: isDark(colors.color) ? 0x000000 : 0x5a4a3a, transparent: true, opacity: 0.35 }),
   );
   mesh.add(edges);
 
