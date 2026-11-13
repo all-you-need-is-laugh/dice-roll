@@ -2,6 +2,8 @@
 
 3D dice roller PWA: D4, D6, D8, D10, D12, D20 and D% (00–90).
 
+**Live:** https://all-you-need-is-laugh.github.io/dice-roll/
+
 - Tap **Roll** (or the die, or press Space) to roll.
 - On a phone, shake it: the die tumbles while you shake and settles when you stop.
   On iPhone, tap **Enable shake** first to allow motion access.
